@@ -674,6 +674,10 @@ class D5FDFileParser:
                       "ND5FDVEP", "ND5FDBNT", "ND5FDMDT", "ND5FDMFD", "ND5FDVCD", 
                       "ND5FDDTI", "ND5FDDCI", "ND5FDFDT"}
         
+        # City code fields that should be validated
+        city_code_fields = {"ND5FDCIC", "ND5FDXTY", "ND5FDVTY", "ND5FDORG", "ND5FDDES", 
+                           "ND5FDMCT", "ND5FDMCY", "ND5FDVRG", "ND5FDMBO"}
+        
         # Check for date field conversion
         if field_name and field_name in date_fields and field_type == "BIN" and len(field_data) == 2:
             binary_date = int.from_bytes(field_data, 'big')
@@ -683,7 +687,14 @@ class D5FDFileParser:
                 return "0"
         
         if field_type == "CHAR":
-            return self.ebcdic_to_ascii(field_data)
+            ascii_value = self.ebcdic_to_ascii(field_data)
+            # Validate city codes
+            if field_name and field_name in city_code_fields and len(ascii_value) == 3:
+                if self.validate_city_code(ascii_value):
+                    return f"{ascii_value} ✓"
+                else:
+                    return f"{ascii_value} ⚠️"
+            return ascii_value
         elif field_type == "BIN":
             return str(int.from_bytes(field_data, 'big'))
         elif field_type == "PIC":
@@ -694,6 +705,22 @@ class D5FDFileParser:
             return "(SPARE)"
         else:
             return field_data.hex().upper()
+
+    def validate_city_code(self, city_code):
+        """Validate city code against known IATA codes"""
+        # Common IATA city codes
+        valid_city_codes = {
+            'ATL', 'LAX', 'ORD', 'DFW', 'DEN', 'JFK', 'SFO', 'LAS', 'SEA', 'CLT',
+            'EWR', 'PHX', 'IAH', 'MIA', 'BOS', 'MSP', 'LGA', 'DTW', 'PHL', 'SLC',
+            'BWI', 'DCA', 'MDW', 'TPA', 'PDX', 'STL', 'HNL', 'AUS', 'MSY', 'RDU',
+            'SAN', 'SJC', 'MCI', 'CLE', 'PIT', 'CVG', 'IND', 'MKE', 'BNA', 'OAK',
+            'RSW', 'SMF', 'SNA', 'ABQ', 'BUF', 'OMA', 'TUL', 'RIC', 'JAX', 'MEM',
+            'NYC', 'WAS', 'CHI', 'LON', 'PAR', 'FRA', 'AMS', 'MAD', 'FCO', 'MUC',
+            'ZUR', 'VIE', 'CPH', 'ARN', 'HEL', 'OSL', 'DUB', 'EDI', 'MAN', 'BRU',
+            'LIS', 'BCN', 'MIL', 'NAP', 'VCE', 'FLR', 'ATH', 'IST', 'CAI', 'JNB',
+            'CPT', 'DUR', 'NBO', 'ADD', 'LOS', 'ACC', 'DKR', 'CAS', 'TUN', 'ALG'
+        }
+        return city_code.upper() in valid_city_codes
 
     def binary_to_bcd_date(self, binary_date, format_size=6):
         """Convert binary date to BCD format"""
